@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>九九乘法：8秒極限挑戰</title>
+    <style>
+        body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #1e272e; color: white; overflow: hidden; touch-action: manipulation; }
+        .container { background: #2f3640; padding: 2rem; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; width: 85%; max-width: 380px; transition: background 0.2s; }
+        .fail-flash { background: #c23616 !important; animation: shake 0.3s both; }
+        
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        .timer-container { height: 12px; width: 100%; background: #4b6584; border-radius: 6px; margin-bottom: 15px; overflow: hidden; }
+        .timer-fill { height: 100%; background: #ff7675; width: 100%; transition: width 0.1s linear; }
+        
+        .progress-text { color: #00d2d3; font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+        .question { font-size: 5rem; font-weight: 800; margin: 5px 0; color: #f5f6fa; }
+        
+        /* 垂直佈局：輸入框在上，OK按鈕在下 */
+        .input-group { display: flex; flex-direction: column; gap: 15px; margin-top: 10px; }
+        
+        input { width: 100%; box-sizing: border-box; padding: 12px; font-size: 3.5rem; border: none; border-radius: 15px; text-align: center; outline: none; background: #f5f6fa; color: #2f3640; -webkit-appearance: none; }
+        
+        .submit-btn { width: 100%; padding: 18px; background: #00d2d3; color: #1e272e; border: none; border-radius: 15px; font-size: 2rem; font-weight: 900; cursor: pointer; transition: background 0.1s, transform 0.1s; box-shadow: 0 5px 0 #01a3a4; }
+        .submit-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #01a3a4; background: #01a3a4; }
+
+        .msg { margin-top: 20px; min-height: 60px; font-size: 1.2rem; font-weight: bold; line-height: 1.4; }
+        .error { color: #fab1a0; }
+        .success { color: #55efc4; }
+        
+        #restart-btn { margin-top: 10px; padding: 20px; font-size: 1.5rem; cursor: pointer; background: #fbc531; color: #2f3640; border: none; border-radius: 15px; font-weight: bold; width: 100%; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="main-box">
+    <div class="progress-text" id="progress-text">準備挑戰</div>
+    <div class="timer-container"><div class="timer-fill" id="timer-fill"></div></div>
+    
+    <div class="question" id="question">- × -</div>
+    
+    <div class="input-group" id="input-area">
+        <input type="number" id="answer" pattern="[0-9]*" inputmode="numeric" placeholder="?" autofocus>
+        <button class="submit-btn" onclick="checkAnswer()">確認送出 (OK)</button>
+    </div>
+    
+    <div class="msg" id="message"></div>
+    <button onclick="initGame()" id="restart-btn" style="display:none;">立即重試</button>
+</div>
+
+<script>
+    let questionPool = [];
+    let currentStep = 0;
+    const totalChallenges = 20;
+    let currentQuestion = {};
+    const timeLimit = 80; 
+    let timeLeft = timeLimit; 
+    let timerInterval = null;
+    let isGameOver = false;
+
+    const mainBox = document.getElementById('main-box');
+    const questionEl = document.getElementById('question');
+    const answerInput = document.getElementById('answer');
+    const messageEl = document.getElementById('message');
+    const progressText = document.getElementById('progress-text');
+    const timerFill = document.getElementById('timer-fill');
+    const restartBtn = document.getElementById('restart-btn');
+    const inputArea = document.getElementById('input-area');
+
+    function createQuestionPool() {
+        let pool = [];
+        for (let i = 2; i <= 9; i++) {
+            for (let j = 2; j <= 9; j++) { pool.push({ a: i, b: j, ans: i * j }); }
+        }
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        return pool.slice(0, totalChallenges);
+    }
+
+    function initGame() {
+        isGameOver = false;
+        clearInterval(timerInterval);
+        questionPool = createQuestionPool();
+        currentStep = 0;
+        messageEl.innerText = '';
+        messageEl.className = 'msg';
+        mainBox.classList.remove('fail-flash');
+        restartBtn.style.display = 'none';
+        inputArea.style.display = 'flex';
+        answerInput.disabled = false;
+        nextQuestion();
+    }
+
+    function startTimer() {
+        clearInterval(timerInterval);
+        timeLeft = timeLimit; 
+        updateTimerBar();
+        timerInterval = setInterval(() => {
+            if(isGameOver) return;
+            timeLeft--;
+            updateTimerBar();
+            if (timeLeft <= 0) { handleFailure("時間到！"); }
+        }, 100);
+    }
+
+    function updateTimerBar() { timerFill.style.width = (timeLeft / timeLimit) * 100 + "%"; }
+
+    function nextQuestion() {
+        if(isGameOver) return;
+        currentQuestion = questionPool[currentStep];
+        questionEl.innerText = `${currentQuestion.a}×${currentQuestion.b}`;
+        answerInput.value = '';
+        answerInput.focus();
+        progressText.innerText = `第 ${currentStep + 1} / ${totalChallenges} 題`;
+        startTimer();
+    }
+
+    function handleFailure(reason) {
+        isGameOver = true;
+        clearInterval(timerInterval);
+        mainBox.classList.add('fail-flash');
+        messageEl.innerText = `${reason}\n${currentQuestion.a}×${currentQuestion.b}=${currentQuestion.ans}\n自動重啟中...`;
+        messageEl.className = "msg error";
+        answerInput.disabled = true;
+        timerFill.style.width = "0%";
+        setTimeout(initGame, 1500);
+    }
+
+    function checkAnswer() {
+        if(isGameOver || !answerInput.value) return;
+        const userAnswer = parseInt(answerInput.value);
+        if (userAnswer === currentQuestion.ans) {
+            currentStep++;
+            if (currentStep >= totalChallenges) {
+                isGameOver = true;
+                clearInterval(timerInterval);
+                timerFill.style.width = "100%";
+                questionEl.innerText = "🏆";
+                messageEl.innerText = "恭喜通關！";
+                messageEl.className = "msg success";
+                inputArea.style.display = 'none';
+                restartBtn.style.display = 'block';
+            } else {
+                nextQuestion();
+            }
+        } else {
+            handleFailure("算錯囉！");
+        }
+    }
+
+    answerInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') checkAnswer(); });
+
+    initGame();
+</script>
+
+</body>
+</html>
