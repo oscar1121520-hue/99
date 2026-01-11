@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>九九乘法：8秒不重複挑戰</title>
+    <title>九九乘法：8秒極限挑戰</title>
     <style>
         body { font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #1e272e; color: white; overflow: hidden; touch-action: manipulation; }
-        .container { background: #2f3640; padding: 2rem; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; width: 90%; max-width: 400px; transition: background 0.2s; }
-        .fail-flash { background: #c23616 !important; animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+        .container { background: #2f3640; padding: 1.5rem; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; width: 90%; max-width: 420px; transition: background 0.2s; }
+        .fail-flash { background: #c23616 !important; animation: shake 0.3s both; }
         
         @keyframes shake {
             10%, 90% { transform: translate3d(-1px, 0, 0); }
@@ -16,19 +16,25 @@
             40%, 60% { transform: translate3d(4px, 0, 0); }
         }
 
-        .timer-container { height: 12px; width: 100%; background: #4b6584; border-radius: 6px; margin-bottom: 20px; overflow: hidden; }
+        .timer-container { height: 10px; width: 100%; background: #4b6584; border-radius: 5px; margin-bottom: 15px; overflow: hidden; }
         .timer-fill { height: 100%; background: #ff7675; width: 100%; transition: width 0.1s linear; }
         
-        .progress-text { color: #00d2d3; font-weight: bold; font-size: 1.2rem; margin-bottom: 10px; }
-        .question { font-size: 5rem; font-weight: 800; margin: 10px 0; color: #f5f6fa; text-shadow: 2px 2px 10px rgba(0,0,0,0.3); }
+        .progress-text { color: #00d2d3; font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; }
+        .question { font-size: 4.5rem; font-weight: 800; margin: 10px 0; color: #f5f6fa; }
         
-        input { width: 100%; box-sizing: border-box; padding: 15px; font-size: 3rem; border: none; border-radius: 15px; text-align: center; outline: none; background: #f5f6fa; color: #2f3640; -webkit-appearance: none; }
+        /* 輸入區域配置 */
+        .input-group { display: flex; gap: 10px; margin-bottom: 10px; }
+        input { flex: 3; box-sizing: border-box; padding: 15px; font-size: 2.5rem; border: none; border-radius: 12px; text-align: center; outline: none; background: #f5f6fa; color: #2f3640; -webkit-appearance: none; }
         
-        .msg { margin-top: 20px; min-height: 60px; font-size: 1.2rem; font-weight: bold; line-height: 1.5; }
+        /* 送出按鈕 */
+        .submit-btn { flex: 1; background: #00d2d3; color: #1e272e; border: none; border-radius: 12px; font-size: 1.5rem; font-weight: bold; cursor: pointer; transition: transform 0.1s; }
+        .submit-btn:active { transform: scale(0.95); background: #01a3a4; }
+
+        .msg { margin-top: 15px; min-height: 50px; font-size: 1.1rem; font-weight: bold; line-height: 1.4; }
         .error { color: #fab1a0; }
         .success { color: #55efc4; }
         
-        button { margin-top: 10px; padding: 15px 40px; font-size: 1.3rem; cursor: pointer; background: #00d2d3; color: #1e272e; border: none; border-radius: 10px; font-weight: bold; width: 100%; }
+        #restart-btn { margin-top: 10px; padding: 15px; font-size: 1.2rem; cursor: pointer; background: #fbc531; color: #2f3640; border: none; border-radius: 12px; font-weight: bold; width: 100%; }
     </style>
 </head>
 <body>
@@ -39,10 +45,13 @@
     
     <div class="question" id="question">- × -</div>
     
-    <input type="number" id="answer" pattern="[0-9]*" inputmode="numeric" placeholder="?" autofocus>
+    <div class="input-group" id="input-area">
+        <input type="number" id="answer" pattern="[0-9]*" inputmode="numeric" placeholder="?" autofocus>
+        <button class="submit-btn" onclick="checkAnswer()">OK</button>
+    </div>
     
-    <div class="msg" id="message">輸入答案後按 Enter</div>
-    <button onclick="initGame()" id="start-btn" style="display:none;">立即重試</button>
+    <div class="msg" id="message"></div>
+    <button onclick="initGame()" id="restart-btn" style="display:none;">立即重試</button>
 </div>
 
 <script>
@@ -50,7 +59,7 @@
     let currentStep = 0;
     const totalChallenges = 20;
     let currentQuestion = {};
-    const timeLimit = 80; // 80個 0.1秒 = 8秒
+    const timeLimit = 80; 
     let timeLeft = timeLimit; 
     let timerInterval = null;
     let isGameOver = false;
@@ -61,9 +70,9 @@
     const messageEl = document.getElementById('message');
     const progressText = document.getElementById('progress-text');
     const timerFill = document.getElementById('timer-fill');
-    const startBtn = document.getElementById('start-btn');
+    const restartBtn = document.getElementById('restart-btn');
+    const inputArea = document.getElementById('input-area');
 
-    // 生成 2-9 不重複題庫
     function createQuestionPool() {
         let pool = [];
         for (let i = 2; i <= 9; i++) {
@@ -71,7 +80,6 @@
                 pool.push({ a: i, b: j, ans: i * j });
             }
         }
-        // 洗牌
         for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -87,8 +95,8 @@
         messageEl.innerText = '';
         messageEl.className = 'msg';
         mainBox.classList.remove('fail-flash');
-        startBtn.style.display = 'none';
-        answerInput.style.display = 'block';
+        restartBtn.style.display = 'none';
+        inputArea.style.visibility = 'visible';
         answerInput.disabled = false;
         nextQuestion();
     }
@@ -126,7 +134,7 @@
         isGameOver = true;
         clearInterval(timerInterval);
         mainBox.classList.add('fail-flash');
-        messageEl.innerText = `${reason}\n${currentQuestion.a}×${currentQuestion.b}=${currentQuestion.ans}\n1.5 秒後自動重啟...`;
+        messageEl.innerText = `${reason}\n${currentQuestion.a}×${currentQuestion.b}=${currentQuestion.ans}\n1.5 秒後重啟...`;
         messageEl.className = "msg error";
         answerInput.disabled = true;
         timerFill.style.width = "0%";
@@ -136,32 +144,35 @@
         }, 1500);
     }
 
+    function checkAnswer() {
+        if(isGameOver) return;
+        const userAnswer = parseInt(answerInput.value);
+        if (userAnswer === currentQuestion.ans) {
+            currentStep++;
+            if (currentStep >= totalChallenges) {
+                isGameOver = true;
+                clearInterval(timerInterval);
+                timerFill.style.width = "100%";
+                questionEl.innerText = "🏆";
+                messageEl.innerText = "通關成功！你是乘法大師！";
+                messageEl.className = "msg success";
+                inputArea.style.visibility = 'hidden';
+                restartBtn.style.display = 'block';
+            } else {
+                nextQuestion();
+            }
+        } else {
+            handleFailure("算錯囉！");
+        }
+    }
+
+    // 支援原本的 Enter 鍵
     answerInput.addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
-            if(isGameOver) return;
-            const userAnswer = parseInt(answerInput.value);
-            if (userAnswer === currentQuestion.ans) {
-                currentStep++;
-                if (currentStep >= totalChallenges) {
-                    isGameOver = true;
-                    clearInterval(timerInterval);
-                    timerFill.style.width = "100%";
-                    questionEl.innerText = "🏆";
-                    messageEl.innerText = "完美通關！你是乘法大師！";
-                    messageEl.className = "msg success";
-                    answerInput.style.display = 'none';
-                    startBtn.style.display = 'block';
-                    startBtn.innerText = "再挑戰一次";
-                } else {
-                    nextQuestion();
-                }
-            } else {
-                handleFailure("算錯囉！");
-            }
+            checkAnswer();
         }
     });
 
-    // 啟動
     initGame();
 </script>
 
